@@ -1,0 +1,19 @@
+{
+  "name": "mmo-format",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "typings": "index",
+  "dependencies": {
+    "mmo-replacer": "github:terkojones/mmo-replacer"
+  },
+  "devDependencies": {
+    "@types/node": "^12.12.18"
+  },
+  "scripts": {
+    "test": "node test/main.test.js"
+  },
+  "keywords": [],
+  "author": "Terko Jones <terkojones@gmail.com>",
+  "license": "ISC"
+}
