@@ -18,17 +18,36 @@ var vm_1 = require("vm");
 var stream_1 = require("stream");
 var $info = Symbol('mmo-inspect-info');
 var $context = Symbol('mmo-context');
-var PH_CHAR = '#';
-var UNNAMED = PH_CHAR + PH_CHAR;
-var SCAPED = '\\\\' + PH_CHAR;
-var CONTENT = '[\\s\\u0021-\\u0022\\u0024-\\uffff]|(?<=\\\\)' + PH_CHAR;
-var STRING_PATTERN = SCAPED + '|' + UNNAMED + '|' + PH_CHAR + '(' + CONTENT + ')+' + PH_CHAR;
-var STREAM_PATTERN = STRING_PATTERN + '|' + PH_CHAR + '(' + CONTENT + ')*$';
-var UNNAMED_PATTERN = SCAPED + '|' + UNNAMED;
-var REX_SCAPED = new RegExp(SCAPED, 'g');
-var REX_STRING = new RegExp(STRING_PATTERN, 'g');
-var REX_STREAM = new RegExp(STREAM_PATTERN, 'g');
-var REX_UNNAMED = new RegExp(UNNAMED_PATTERN, 'g');
+var _rex_scaped;
+var _rex_string;
+var _rex_stream;
+var _rex_unamed;
+var _scaped_string;
+var _unnamed;
+var _mark;
+function config_expressions(mark) {
+    _mark = mark;
+    _unnamed = mark + mark;
+    _scaped_string = '\\' + mark;
+    var SCAPED = '\\\\' + mark;
+    var CONTENT = '([\\s' + chars_range(mark) + ']|(?<=\\\\)' + mark + ')+';
+    var CONTENT_STRING = mark + '(' + CONTENT + ')' + mark;
+    var CONTENT_STREAM = '(' + CONTENT_STRING + ')|(' + mark + '(' + CONTENT + ')*$)';
+    var STRING_PATTERN = "(" + SCAPED + ')|(' + _unnamed + ')|(' + CONTENT_STRING + ')';
+    var STREAM_PATTERN = "(" + SCAPED + ')|(' + CONTENT_STREAM + ')';
+    var UNNAMED_PATTERN = SCAPED + '|' + _unnamed;
+    _rex_scaped = new RegExp(SCAPED, 'g');
+    _rex_string = new RegExp(STRING_PATTERN, 'g');
+    _rex_stream = new RegExp(STREAM_PATTERN, 'g');
+    _rex_unamed = new RegExp(UNNAMED_PATTERN, 'g');
+}
+function chars_range(char) {
+    var code = char.charCodeAt(0);
+    var a = (code - 1).toString(16).padStart(4, '0');
+    var b = (code + 1).toString(16).padStart(4, '0');
+    return "\\u0021-\\u" + a + "\\u" + b + "-\\uffff";
+}
+config_expressions('#');
 function inspect_object(object, options) {
     if (object[$info] && object[$info].inspect) {
         if (object[$info].options) {
@@ -44,8 +63,8 @@ function stringify_object(object) {
     return util_1.format(object);
 }
 function run_expression(parse, context, expr, options) {
-    REX_SCAPED.lastIndex = 0;
-    expr = '(' + expr.substr(1, expr.length - 2).replace(REX_SCAPED, PH_CHAR) + ')';
+    _rex_scaped.lastIndex = 0;
+    expr = '(' + expr.substr(1, expr.length - 2).replace(_rex_scaped, _mark) + ')';
     try {
         var val = vm_1.runInContext(expr, context);
         return parse(val, options);
@@ -107,16 +126,21 @@ var ReplacerStream = (function (_super) {
         var m;
         var from = 0;
         var out = '';
-        REX_STREAM.lastIndex = 0;
-        while ((m = REX_STREAM.exec(chunk)) != null) {
+        _rex_stream.lastIndex = 0;
+        while ((m = _rex_stream.exec(chunk)) != null) {
             if (m.index > from)
                 out += chunk.substr(from, m.index - from);
-            if (m[4]) {
+            if (m[6]) {
                 this._rest = m[0];
                 from = chunk.length;
                 break;
             }
-            out += run_expression(this._parse, this._context, m[0], this._options);
+            if (m[0] === _scaped_string) {
+                out += _mark;
+            }
+            else {
+                out += run_expression(this._parse, this._context, m[0], this._options);
+            }
             from = m.index + m[0].length;
         }
         if (from < chunk.length)
@@ -144,16 +168,16 @@ function format() {
     }
     if (message) {
         if (context) {
-            REX_STRING.lastIndex = 0;
-            message = message.replace(REX_STRING, function (m) {
-                if (m === SCAPED || m === UNNAMED)
+            _rex_string.lastIndex = 0;
+            message = message.replace(_rex_string, function (m) {
+                if (m === _scaped_string || m === _unnamed)
                     return m;
                 return run_expression(parse, context, m, options);
             });
         }
-        message = message.replace(REX_UNNAMED, function (m) {
-            if (m === SCAPED)
-                return PH_CHAR;
+        message = message.replace(_rex_unamed, function (m) {
+            if (m === _scaped_string)
+                return _mark;
             if (ac < args.length) {
                 var val = args[ac++];
                 return val === undefined ? '#UNDEFINED' : parse(val, options);
@@ -205,6 +229,10 @@ function format() {
         return new ReplacerStream(context, parse, options);
     }
     format.transform = transform;
+    function changeMarkChar(mark) {
+        config_expressions(mark);
+    }
+    format.changeMarkChar = changeMarkChar;
 })(format || (format = {}));
 exports.default = format;
 //# sourceMappingURL=index.js.map

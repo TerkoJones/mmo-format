@@ -30,6 +30,7 @@ declare namespace format {
     function contextualize(object: TSandbox): TContext;
     function isContextualize(object: any): boolean;
     function transform(context: TSandbox | TContext, options?: InspectOptions | boolean): Transform;
+    function changeMarkChar(mark: string): void;
     type Context = TContext;
     type Sandbox = TSandbox;
 }
